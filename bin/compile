@@ -1,0 +1,44 @@
+#!/usr/bin/env python
+
+import os
+import sys
+import subprocess
+
+base = os.path.dirname(os.path.abspath(sys.argv[0])).replace("bin", "")
+assignment = sys.argv[1]
+assignment_dir = os.path.join(base, assignment)
+assignment_basname = os.path.join(assignment_dir, assignment)
+
+
+print "{+] Compiling %s.nasm" % assignment_basname
+os.system("nasm -f elf32 -o {0}.o {0}.nasm".format(assignment_basname))
+
+print "{+] Linking %s.o" % assignment_basname
+os.system("ld -m elf_i386 -o {0} {0}.o".format(assignment_basname))
+
+print "[+] Getting Shellcode"
+p = subprocess.Popen([base + "/bin/getshellcode.sh", assignment_basname + ".o"], stdout = subprocess.PIPE)
+code = p.communicate()[0].rstrip()
+
+print "[+] Got Shellcode: %s" % code
+
+if "0x00" in code:
+    print "[!] Nulls found in shellcode...exiting"
+    sys,exit(1)
+else:
+    print "[+] No nulls found, all good!"
+
+print "[+] Putting shellcode into skeleton: %s_test.c " % assignment_basname
+with open(base + "/bin/test_skel.c") as f:
+    template = f.read()
+
+template = template.replace("SHELLCODE", code)
+
+with open(assignment_basname + "_test.c", "w") as f:
+    f.write(template)
+
+print "{+} Compiling %s_test.c" % assignment_basname
+os.system("gcc -o {0} -m32 -fno-stack-protector -z execstack {0}_test.c".format(assignment_basname))
+
+print "[+] Running %s" % assignment_basname
+os.system(assignment_basname)
